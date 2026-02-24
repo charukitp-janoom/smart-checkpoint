@@ -249,7 +249,7 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
     <div class="admin-row">
       <div class="admin-av">👨‍💼</div>
       <div>
-        <div class="admin-name">ผู้กำกับ สมชาย ก.</div>
+        <div class="admin-name">JANOOM1756</div>
         <div class="admin-id">ADM-001 · SUPER ADMIN</div>
       </div>
     </div>
@@ -432,8 +432,8 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 // ════════════════════════════════════════════════════════
 let CFG = JSON.parse(localStorage.getItem('sc_admin_cfg') || JSON.stringify({
   apiUrl: '',        // Google Apps Script Web App URL
-  secret: 'CHANGE_THIS_ADMIN_SECRET',
-  liffUrl: 'https://liff.line.me/YOUR_LIFF_ID'
+  secret: 'CP2025_xK9m_aBc3',
+  liffUrl: 'https://liff.line.me/2009191893-bRGE15SL'
 }));
 
 // State
@@ -653,11 +653,17 @@ function openQrModal(cpId) {
   const payload = buildQrPayload(cp);
 
   document.getElementById('qrCode').innerHTML = '';
+  // Disable action buttons while rendering
+  document.querySelectorAll('.modal-acts .m-btn').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
   new QRCode(document.getElementById('qrCode'), {
     text: qrUrl, width: 200, height: 200,
     colorDark: '#000000', colorLight: '#ffffff',
     correctLevel: QRCode.CorrectLevel.H
   });
+  // Re-enable after QRCode finishes (canvas needs a paint tick)
+  setTimeout(() => {
+    document.querySelectorAll('.modal-acts .m-btn').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+  }, 400);
 
   document.getElementById('qrInfo').innerHTML = `
     <div class="qi-row"><span class="qi-k">CHECKPOINT ID</span><span class="qi-v">${cp.id}</span></div>
@@ -673,6 +679,26 @@ function openQrModal(cpId) {
   document.getElementById('qrModal').classList.add('show');
 }
 
+function getQrCanvas() {
+  return new Promise((resolve) => {
+    // Try to get existing canvas
+    const tryGet = (attempts) => {
+      const canvas = document.querySelector('#qrCode canvas');
+      if (canvas && canvas.width > 0) { resolve(canvas); return; }
+      // Fallback: try img tag (some QRCode versions render img)
+      const img = document.querySelector('#qrCode img');
+      if (img && img.complete) {
+        const c = document.createElement('canvas');
+        c.width = 200; c.height = 200;
+        c.getContext('2d').drawImage(img, 0, 0, 200, 200);
+        resolve(c); return;
+      }
+      if (attempts > 0) setTimeout(() => tryGet(attempts - 1), 150);
+      else resolve(null);
+    };
+    tryGet(10);
+  });
+}
 
 function printQR() {
   getQrCanvas().then(canvas => {
@@ -709,7 +735,6 @@ function printQR() {
     win.document.close();
   });
 }
-
 
 function downloadQR() {
   getQrCanvas().then(canvas => {
@@ -795,6 +820,7 @@ function downloadQR() {
     showToast('⬇ ดาวน์โหลด QR สำเร็จ!');
   });
 }
+
 function copyQrUrl() {
   navigator.clipboard.writeText(buildQrUrl(currentQrCp)).then(() => showToast('🔗 คัดลอก URL แล้ว'));
 }
