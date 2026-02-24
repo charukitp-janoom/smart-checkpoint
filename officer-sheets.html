@@ -410,7 +410,7 @@ let currentDist=Infinity, officerInfo={id:'OFF-UNKNOWN',name:'ผู้ใช้
 async function getLiffUser() {
   try {
     if (window.liff) {
-      await liff.init({ liffId: 'YOUR_LIFF_ID' });
+      await liff.init({ liffId: 'https://liff.line.me/2009191893-zDQzwQ64' });
       if (liff.isLoggedIn()) {
         const profile = await liff.getProfile();
         officerInfo = { id: profile.userId, name: profile.displayName };
