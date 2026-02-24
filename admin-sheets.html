@@ -224,7 +224,7 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
   <div class="brand">
     <div class="brand-icon">🛡️</div>
     <div class="brand-name">CHECKPOINT ADMIN</div>
-    <div class="brand-sub">COMMAND CENTER v2.4</div>
+    <div class="brand-sub">COMMAND CENTER v2.5</div>
     <div class="db-status">
       <div class="db-dot loading" id="dbDot"></div>
       <span id="dbTxt">กำลังเชื่อมต่อ...</span>
@@ -233,14 +233,14 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 
   <nav class="nav">
     <div class="nav-sec">หลัก</div>
-    <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-ic">📊</span> Dashboard</div>
-    <div class="nav-item" onclick="showPage('checkpoints')"><span class="nav-ic">📍</span> จุดตรวจ <span class="nav-badge" id="cpBadge">0</span></div>
-    <div class="nav-item" onclick="showPage('mapPage')"><span class="nav-ic">🗺️</span> แผนที่</div>
+    <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')"><span class="nav-ic">📊</span> Dashboard</div>
+    <div class="nav-item" data-page="checkpoints" onclick="showPage('checkpoints')"><span class="nav-ic">📍</span> จุดตรวจ <span class="nav-badge" id="cpBadge">0</span></div>
+    <div class="nav-item" data-page="mapPage" onclick="showPage('mapPage')"><span class="nav-ic">🗺️</span> แผนที่</div>
     <div class="nav-sec">รายงาน</div>
-    <div class="nav-item" onclick="showPage('logs')"><span class="nav-ic">📋</span> ประวัติเช็คอิน <span class="nav-badge green" id="logBadge">0</span></div>
-    <div class="nav-item" onclick="showPage('officers')"><span class="nav-ic">👮</span> เจ้าหน้าที่</div>
+    <div class="nav-item" data-page="logs" onclick="showPage('logs')"><span class="nav-ic">📋</span> ประวัติเช็คอิน <span class="nav-badge green" id="logBadge">0</span></div>
+    <div class="nav-item" data-page="officers" onclick="showPage('officers')"><span class="nav-ic">👮</span> เจ้าหน้าที่</div>
     <div class="nav-sec">ระบบ</div>
-    <div class="nav-item" onclick="showPage('settings')"><span class="nav-ic">⚙️</span> ตั้งค่า</div>
+    <div class="nav-item" data-page="settings" onclick="showPage('settings')"><span class="nav-ic">⚙️</span> ตั้งค่า</div>
   </nav>
 
   <div class="sidebar-foot">
@@ -420,8 +420,8 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 // ════════════════════════════════════════════════════════
 let CFG = JSON.parse(localStorage.getItem('sc_admin_cfg') || JSON.stringify({
   apiUrl: '',        // Google Apps Script Web App URL
-  secret: 'CP2025_xK9m_aBc3',
-  liffUrl: 'https://liff.line.me/2009191893-bRGE15SL'
+  secret: '',        // ใส่ใน Settings → ต้องตรงกับ ADMIN_SECRET ใน Code.gs
+  liffUrl: ''        // LIFF URL จาก LINE Developers Console
 }));
 
 // State
@@ -611,7 +611,19 @@ function clearPin() {
 // ════════════════════════════════════════════════════════
 // OFFICERS
 // ════════════════════════════════════════════════════════
-function openAddOfficer() { showToast('🚧 กรุณาเพิ่มเจ้าหน้าที่ผ่าน Google Sheets โดยตรง'); }
+function openAddOfficer() {
+  const name = prompt('ชื่อ-สกุลเจ้าหน้าที่:');
+  if (!name) return;
+  const rank = prompt('ยศ/ตำแหน่ง (เช่น ส.ต.ท., ร.ต.อ.):') || '';
+  const lineId = prompt('LINE User ID (ถ้ามี):') || '';
+  const phone = prompt('เบอร์โทร (ถ้ามี):') || '';
+  if (!name.trim()) { showToast('❌ กรุณากรอกชื่อ'); return; }
+  showLoader('กำลังเพิ่มเจ้าหน้าที่...');
+  api(null, { action: 'addOfficer', data: { name: name.trim(), rank, lineUserId: lineId, phone } })
+    .then(() => { showToast('✅ เพิ่มเจ้าหน้าที่แล้ว'); loadAll(); })
+    .catch(() => {})
+    .finally(() => hideLoader());
+}
 
 // ════════════════════════════════════════════════════════
 // QR CODE
@@ -662,6 +674,7 @@ function openQrModal(cpId) {
 }
 
 function printQR() {
+  if (!currentQrCp) { showToast('❌ ยังไม่มีจุดตรวจที่เลือก', 'error'); return; }
   const qrCanvas = document.querySelector('#qrCode canvas');
   const qrImg = document.querySelector('#qrCode img');
   let qrDataUrl = '';
@@ -692,6 +705,7 @@ function printQR() {
 }
 
 function downloadQR() {
+  if (!currentQrCp) { showToast('❌ ยังไม่มีจุดตรวจที่เลือก', 'error'); return; }
   const qrCanvas = document.querySelector('#qrCode canvas');
   const qrImg = document.querySelector('#qrCode img');
   let sourceEl = null;
@@ -757,6 +771,7 @@ function downloadQR() {
 }
 
 function copyQrUrl() {
+  if (!currentQrCp) { showToast('❌ ยังไม่มีจุดตรวจที่เลือก'); return; }
   navigator.clipboard.writeText(buildQrUrl(currentQrCp)).then(() => showToast('🔗 คัดลอก URL แล้ว'));
 }
 
@@ -938,6 +953,9 @@ function saveSettings() {
   CFG.apiUrl = document.getElementById('settingApiUrl').value.trim();
   CFG.secret = document.getElementById('settingSecret').value.trim();
   localStorage.setItem('sc_admin_cfg', JSON.stringify(CFG));
+  // Sync ให้ officer-sheets.html อ่านได้จาก localStorage เดียวกัน
+  localStorage.setItem('sc_api_url', CFG.apiUrl);
+  localStorage.setItem('sc_secret', CFG.secret);
   document.getElementById('displayApiUrl').textContent = CFG.apiUrl || 'ยังไม่ได้ตั้งค่า';
   showToast('✅ บันทึกการตั้งค่าแล้ว');
   loadAll();
@@ -946,6 +964,7 @@ function saveSettings() {
 function saveLiffSettings() {
   CFG.liffUrl = document.getElementById('settingLiff').value.trim();
   localStorage.setItem('sc_admin_cfg', JSON.stringify(CFG));
+  localStorage.setItem('sc_liff_id', CFG.liffUrl.replace('https://liff.line.me/', ''));
   showToast('✅ บันทึก LIFF URL แล้ว');
 }
 
@@ -975,8 +994,43 @@ function exportCsv() {
 }
 
 // ════════════════════════════════════════════════════════
-// NAVIGATION
+// QR CODE (ต่อ)
 // ════════════════════════════════════════════════════════
+function downloadQR() {
+  if (!currentQrCp) return;
+  // รอ QRCode render เสร็จแล้ว convert canvas เป็น PNG
+  const qrCanvas = document.querySelector('#qrCode canvas');
+  if (!qrCanvas) { showToast('❌ ยังไม่มี QR ให้ดาวน์โหลด'); return; }
+  const link = document.createElement('a');
+  link.download = `QR_${currentQrCp.id}.png`;
+  link.href = qrCanvas.toDataURL('image/png');
+  link.click();
+  showToast('⬇ ดาวน์โหลด QR สำเร็จ');
+}
+
+function printQR() {
+  if (!currentQrCp) return;
+  const qrCanvas = document.querySelector('#qrCode canvas');
+  if (!qrCanvas) { showToast('❌ ยังไม่มี QR'); return; }
+  const img = qrCanvas.toDataURL('image/png');
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>QR ${currentQrCp.id}</title>
+    <style>body{text-align:center;font-family:monospace;padding:30px;}img{width:260px;}</style></head>
+    <body>
+      <h2>${currentQrCp.id} — ${currentQrCp.name}</h2>
+      <img src="${img}"><br>
+      <p>รัศมี: ${currentQrCp.radius} ม. | เวลา: ${currentQrCp.timeFrom}–${currentQrCp.timeTo}</p>
+      <script>window.onload=()=>{window.print();window.close();}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
+function copyQrUrl() {
+  if (!currentQrCp) return;
+  const url = buildQrUrl(currentQrCp);
+  navigator.clipboard.writeText(url).then(() => showToast('📋 คัดลอก URL แล้ว'));
+}
 const pageTitles = { dashboard:'📊 DASHBOARD', checkpoints:'📍 จุดตรวจ', mapPage:'🗺️ แผนที่จุดตรวจ', logs:'📋 ประวัติเช็คอิน', officers:'👮 เจ้าหน้าที่', settings:'⚙️ ตั้งค่า' };
 
 function showPage(id) {
@@ -985,10 +1039,9 @@ function showPage(id) {
   document.getElementById('page-'+id)?.classList.add('active');
   document.getElementById('pageTitle').textContent = pageTitles[id] || id;
 
-  // Activate nav item
-  document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.onclick?.toString().includes(`'${id}'`)) n.classList.add('active');
-  });
+  // Activate nav item using data-page attribute (robust)
+  const navItem = document.querySelector(`.nav-item[data-page="${id}"]`);
+  if (navItem) navItem.classList.add('active');
 
   if (id === 'mapPage') setTimeout(() => { initMap(); adminMap?.invalidateSize(); renderMapCpList(); }, 100);
   if (id === 'logs') { loadCheckins(); updateLogFilter(); }
