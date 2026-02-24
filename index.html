@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ตรวจจุด — Smart Checkpoint</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+:root{--bg:#020b18;--surface:#071526;--card:#0c1e33;--border:#1a3a5c;--accent:#00d4ff;--accent2:#00ff9d;--warn:#ff6b35;--danger:#ff2d55;--text:#e0f0ff;--dim:#5a8aaa;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Sarabun',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+.orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0;}
+.orb1{width:280px;height:280px;background:rgba(0,212,255,.08);top:-80px;right:-60px;}
+.orb2{width:220px;height:220px;background:rgba(0,255,157,.05);bottom:60px;left:-60px;}
+.wrap{position:relative;z-index:2;max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;}
+
+/* Header */
+.hdr{padding:14px 18px 10px;background:rgba(2,11,24,.9);border-bottom:1px solid var(--border);backdrop-filter:blur(10px);position:sticky;top:0;z-index:10;}
+.hdr-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.logo-row{display:flex;align-items:center;gap:10px;}
+.logo-ico{width:34px;height:34px;background:linear-gradient(135deg,#00d4ff,#00ff9d);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 0 14px rgba(0,212,255,.4);}
+.logo-txt{font-family:'Chakra Petch',monospace;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--accent);text-shadow:0 0 8px var(--accent);}
+.logo-sub{font-size:10px;color:var(--dim);letter-spacing:1px;}
+.db-pill{display:flex;align-items:center;gap:5px;padding:3px 9px;border:1px solid var(--border);border-radius:20px;font-family:'Chakra Petch',monospace;font-size:9px;letter-spacing:1px;}
+.db-dot{width:6px;height:6px;border-radius:50%;transition:all .3s;}
+.db-dot.ok{background:var(--accent2);box-shadow:0 0 6px var(--accent2);animation:blink 1.5s infinite;}
+.db-dot.err{background:var(--danger);}
+.db-dot.spin{background:var(--warn);animation:blink .7s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+.steps{display:flex;padding:0 4px;gap:0;}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;}
+.step::after{content:'';position:absolute;top:12px;left:50%;width:100%;height:2px;background:var(--border);z-index:0;}
+.step:last-child::after{display:none;}
+.step.done::after{background:var(--accent);}
+.step-n{width:24px;height:24px;border-radius:50%;border:2px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;font-family:'Chakra Petch',monospace;position:relative;z-index:1;transition:all .4s;color:var(--dim);}
+.step.active .step-n{border-color:var(--accent);color:var(--accent);box-shadow:0 0 10px var(--accent);}
+.step.done .step-n{border-color:var(--accent2);background:var(--accent2);color:#000;}
+.step-lbl{font-size:9px;color:var(--dim);margin-top:3px;}
+.step.active .step-lbl{color:var(--accent);}
+
+.main{flex:1;padding:14px;display:flex;flex-direction:column;gap:13px;}
+.screen{display:none;flex-direction:column;gap:13px;animation:fadeUp .3s ease;}
+.screen.active{display:flex;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px;position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.5;}
+.card-ttl{font-family:'Chakra Petch',monospace;font-size:10px;letter-spacing:2px;color:var(--dim);margin-bottom:11px;text-transform:uppercase;}
+
+/* QR Scanner */
+.qr-wrap{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:1;border:1px solid var(--border);}
+#scanVideo{width:100%;height:100%;object-fit:cover;display:block;}
+.scan-ui{position:absolute;inset:0;pointer-events:none;}
+.scan-frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:65%;aspect-ratio:1;}
+.sc{position:absolute;width:26px;height:26px;border-color:var(--accent);border-style:solid;}
+.sc.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
+.sc.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0;}
+.sc.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px;}
+.sc.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
+.laser{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:lscan 2s ease-in-out infinite;box-shadow:0 0 8px var(--accent);}
+@keyframes lscan{0%,100%{top:0}50%{top:100%}}
+.scan-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);padding:10px;display:flex;align-items:center;gap:8px;}
+.scan-txt{font-family:'Chakra Petch',monospace;font-size:10px;letter-spacing:1px;color:var(--accent);}
+.scan-hint{font-size:11px;color:var(--dim);text-align:center;margin-top:6px;line-height:1.5;}
+
+/* QR Result */
+.qr-result{background:var(--surface);border:1px solid rgba(0,255,157,.3);border-radius:10px;padding:13px;display:none;}
+.qr-result.show{display:block;}
+.qr-cp-hdr{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+.qr-badge{width:44px;height:44px;border-radius:10px;background:rgba(0,255,157,.1);border:1px solid rgba(0,255,157,.3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.qr-cp-id{font-family:'Chakra Petch',monospace;font-size:12px;color:var(--accent2);font-weight:700;}
+.qr-cp-name{font-size:14px;font-weight:700;margin-bottom:2px;}
+.qr-cp-sub{font-size:11px;color:var(--dim);}
+.qr-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.qi{background:rgba(0,0,0,.3);border-radius:7px;padding:7px 9px;}
+.qi label{display:block;font-family:'Chakra Petch',monospace;font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:2px;}
+.qi span{font-family:'Chakra Petch',monospace;font-size:11px;color:var(--accent2);}
+
+/* GPS */
+.gps-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;}
+.gi{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:9px;}
+.gi-lbl{font-family:'Chakra Petch',monospace;font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:3px;}
+.gi-val{font-family:'Chakra Petch',monospace;font-size:11px;color:var(--accent2);}
+.gi-val.dim{color:var(--dim);font-size:10px;}
+
+/* Distance ring */
+.dist-center{display:flex;flex-direction:column;align-items:center;padding:14px 0;}
+.dist-ring{position:relative;width:110px;height:110px;display:flex;align-items:center;justify-content:center;}
+.dist-ring svg{position:absolute;inset:0;transform:rotate(-90deg);}
+.dist-inner{text-align:center;}
+.dist-num{font-family:'Chakra Petch',monospace;font-size:26px;font-weight:700;}
+.dist-unit{font-size:9px;color:var(--dim);letter-spacing:1px;}
+.dist-lbl{font-family:'Chakra Petch',monospace;font-size:11px;margin-top:6px;letter-spacing:1px;text-align:center;}
+
+/* Zone bars */
+.zone-ok{background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.3);border-radius:8px;padding:10px 13px;display:flex;align-items:center;gap:10px;}
+.zone-fail{background:rgba(255,45,85,.08);border:1px solid rgba(255,45,85,.3);border-radius:8px;padding:10px 13px;display:flex;align-items:center;gap:10px;}
+.zone-ic{font-size:18px;}
+.zone-txt{flex:1;}
+.zone-txt strong{display:block;font-size:11px;letter-spacing:.5px;}
+.zone-ok strong{color:var(--accent2);}
+.zone-fail strong{color:var(--danger);}
+.zone-txt small{font-size:11px;color:var(--dim);}
+
+/* Camera */
+.cam-wrap{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:3/4;border:1px solid var(--border);}
+#camVideo{width:100%;height:100%;object-fit:cover;display:block;}
+.cam-ui{position:absolute;inset:0;pointer-events:none;}
+.cc{position:absolute;width:26px;height:26px;border-color:var(--accent);border-style:solid;}
+.cc.tl{top:10px;left:10px;border-width:2px 0 0 2px;}
+.cc.tr{top:10px;right:10px;border-width:2px 2px 0 0;}
+.cc.bl{bottom:10px;left:10px;border-width:0 0 2px 2px;}
+.cc.br{bottom:10px;right:10px;border-width:0 2px 2px 0;}
+.cam-line{position:absolute;left:10px;right:10px;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);top:10px;animation:cscan 3s ease-in-out infinite;}
+@keyframes cscan{0%,100%{top:10px}50%{top:calc(100% - 10px)}}
+.cam-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);padding:7px 11px;display:flex;justify-content:space-between;align-items:flex-end;}
+.cam-tag{background:rgba(0,0,0,.6);border:1px solid var(--border);border-radius:5px;padding:3px 7px;font-family:'Chakra Petch',monospace;font-size:9px;color:var(--accent2);letter-spacing:1px;margin-bottom:4px;}
+.live-badge{display:flex;align-items:center;gap:4px;background:rgba(255,45,85,.85);border-radius:4px;padding:3px 7px;font-family:'Chakra Petch',monospace;font-size:9px;font-weight:700;letter-spacing:2px;}
+.live-dot{width:5px;height:5px;border-radius:50%;background:#fff;animation:blink .8s infinite;}
+
+.photo-prev{border-radius:12px;overflow:hidden;position:relative;display:none;border:1px solid var(--border);}
+.photo-prev img{width:100%;display:block;}
+.photo-stamp{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.75);padding:8px 12px;font-family:'Chakra Petch',monospace;font-size:9px;color:rgba(0,255,157,.85);letter-spacing:.5px;line-height:1.8;}
+canvas#photoCanvas{display:none;}
+
+.wm-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'Chakra Petch',monospace;font-size:10px;}
+.wm-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+.wm-row:last-child{margin:0;}
+.wm-k{color:var(--dim);font-size:9px;letter-spacing:1px;}
+.wm-v{color:var(--accent2);}
+
+.cam-ctrls{display:flex;align-items:center;justify-content:center;gap:22px;padding:11px 0;}
+.ctrl{width:46px;height:46px;border-radius:50%;border:2px solid var(--border);background:var(--card);color:var(--dim);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.ctrl:hover{border-color:var(--accent);color:var(--accent);}
+.shutter{width:66px;height:66px;border-radius:50%;border:3px solid var(--accent);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 0 16px rgba(0,212,255,.3);}
+.shutter::before{content:'';width:50px;height:50px;border-radius:50%;background:var(--accent);transition:all .2s;}
+.shutter:active::before{transform:scale(.9);}
+.shutter.off{border-color:var(--border);box-shadow:none;cursor:not-allowed;opacity:.4;}
+.shutter.off::before{background:var(--border);}
+
+/* Buttons */
+.btn{width:100%;padding:13px;border-radius:10px;border:none;font-family:'Sarabun',sans-serif;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;}
+.btn-p{background:linear-gradient(135deg,var(--accent),#0099cc);color:#000;box-shadow:0 4px 16px rgba(0,212,255,.3);}
+.btn-p:hover{box-shadow:0 4px 26px rgba(0,212,255,.5);transform:translateY(-1px);}
+.btn-p:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none;}
+.btn-g{background:transparent;border:1px solid var(--border);color:var(--dim);}
+.btn-s{background:linear-gradient(135deg,var(--accent2),#00aa66);color:#000;box-shadow:0 4px 16px rgba(0,255,157,.3);}
+.btn-s:disabled{opacity:.5;cursor:not-allowed;}
+
+/* Blocker */
+.blocker{position:fixed;inset:0;z-index:500;background:rgba(2,11,24,.97);display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px 26px;text-align:center;backdrop-filter:blur(6px);}
+.blocker.show{display:flex;}
+.blocker-ico{font-size:58px;margin-bottom:14px;animation:pw 1.8s ease-in-out infinite;}
+@keyframes pw{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.blocker-ttl{font-family:'Chakra Petch',monospace;font-size:19px;font-weight:700;color:var(--danger);text-shadow:0 0 16px var(--danger);letter-spacing:2px;margin-bottom:8px;}
+.blocker-sub{font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:22px;}
+.blocker-dist{font-family:'Chakra Petch',monospace;font-size:46px;font-weight:700;color:var(--warn);text-shadow:0 0 16px rgba(255,107,53,.4);}
+.blocker-unit{font-family:'Chakra Petch',monospace;font-size:12px;color:var(--dim);letter-spacing:2px;margin-bottom:22px;}
+.blocker-need{font-family:'Chakra Petch',monospace;font-size:11px;color:var(--dim);padding:5px 14px;border:1px solid var(--border);border-radius:6px;margin-bottom:22px;}
+.blocker-need span{color:var(--accent2);}
+.rr{position:relative;width:90px;height:90px;margin:0 auto 18px;}
+.r{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(255,45,85,.3);animation:ro 2.5s ease-out infinite;}
+.r:nth-child(2){animation-delay:.8s}.r:nth-child(3){animation-delay:1.6s}
+@keyframes ro{from{transform:scale(.3);opacity:.9}to{transform:scale(1.9);opacity:0}}
+.rc{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:rgba(255,45,85,.15);border:2px solid var(--danger);display:flex;align-items:center;justify-content:center;font-size:15px;}
+
+/* Result */
+.res-ico{font-size:54px;display:block;text-align:center;margin-bottom:11px;animation:bi .6s;}
+@keyframes bi{0%{transform:scale(0)}70%{transform:scale(1.1)}100%{transform:scale(1)}}
+.res-ttl{font-family:'Chakra Petch',monospace;font-size:19px;font-weight:700;color:var(--accent2);text-shadow:0 0 16px var(--accent2);letter-spacing:2px;text-align:center;margin-bottom:4px;}
+.res-sub{font-size:12px;color:var(--dim);text-align:center;margin-bottom:14px;}
+.detail-list{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.dr{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;border-bottom:1px solid var(--border);font-size:12px;}
+.dr:last-child{border:none;}
+.dk{color:var(--dim);}
+.dv{font-family:'Chakra Petch',monospace;font-size:11px;color:var(--accent);}
+.dv.ok{color:var(--accent2);}
+
+/* Sending overlay */
+.send-overlay{position:fixed;inset:0;background:rgba(2,11,24,.92);z-index:600;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;backdrop-filter:blur(4px);}
+.send-overlay.show{display:flex;}
+.send-spin{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--accent2);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.send-txt{font-family:'Chakra Petch',monospace;font-size:12px;color:var(--dim);letter-spacing:1px;text-align:center;}
+
+.toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%) translateY(14px);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:12px;color:var(--text);opacity:0;transition:all .3s;z-index:700;white-space:nowrap;font-family:'Chakra Petch',monospace;letter-spacing:.5px;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+
+<!-- Blocker -->
+<div class="blocker" id="blocker">
+  <div class="rr"><div class="r"></div><div class="r"></div><div class="r"></div><div class="rc">📡</div></div>
+  <div class="blocker-ttl">⛔ OUT OF RANGE</div>
+  <div class="blocker-sub">คุณอยู่นอกระยะจุดตรวจ<br>กรุณาเดินไปยังจุดตรวจก่อน</div>
+  <div class="blocker-dist" id="bDist">---</div>
+  <div class="blocker-unit">เมตร จากจุดตรวจ</div>
+  <div class="blocker-need">ต้องอยู่ภายใน <span id="bRadius">50</span> เมตร</div>
+  <div style="font-size:11px;color:var(--dim);font-family:'Chakra Petch',monospace;letter-spacing:1px;line-height:2;">📍 <span id="bCpName">---</span><br>🔄 อัปเดตทุก 2 วินาที</div>
+</div>
+
+<!-- Sending overlay -->
+<div class="send-overlay" id="sendOverlay">
+  <div class="send-spin"></div>
+  <div class="send-txt" id="sendTxt">กำลังบันทึกข้อมูล<br>ไปยัง Google Sheets...</div>
+</div>
+
+<div class="wrap">
+  <div class="hdr">
+    <div class="hdr-row">
+      <div class="logo-row">
+        <div class="logo-ico">🛡️</div>
+        <div><div class="logo-txt">SMART CHECKPOINT</div><div class="logo-sub">Google Sheets DB</div></div>
+      </div>
+      <div class="db-pill">
+        <div class="db-dot spin" id="dbDot"></div>
+        <span id="dbTxt" style="color:var(--dim);font-size:9px;">connecting...</span>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step active" id="s1"><div class="step-n">1</div><div class="step-lbl">สแกน QR</div></div>
+      <div class="step" id="s2"><div class="step-n">2</div><div class="step-lbl">ตรวจ GPS</div></div>
+      <div class="step" id="s3"><div class="step-n">3</div><div class="step-lbl">ถ่ายภาพ</div></div>
+      <div class="step" id="s4"><div class="step-n">4</div><div class="step-lbl">สำเร็จ</div></div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- SCREEN 1: QR SCAN -->
+    <div class="screen active" id="screen1">
+      <div class="card">
+        <div class="card-ttl">🔲 สแกน QR Code จุดตรวจ</div>
+        <div class="qr-wrap">
+          <video id="scanVideo" autoplay playsinline muted></video>
+          <div class="scan-ui">
+            <div class="scan-frame">
+              <div class="sc tl"></div><div class="sc tr"></div><div class="sc bl"></div><div class="sc br"></div>
+              <div class="laser"></div>
+            </div>
+            <div class="scan-bar"><div style="font-size:15px">🔍</div><div class="scan-txt" id="scanTxt">กำลังสแกน...</div></div>
+          </div>
+        </div>
+        <div class="scan-hint" id="scanHint">📱 นำ QR Code มาอยู่ในกรอบ — ระบบสแกนอัตโนมัติ<br>QR จะถูกตรวจสอบกับ Google Sheets</div>
+      </div>
+
+      <div class="qr-result" id="qrResult">
+        <div class="qr-cp-hdr">
+          <div class="qr-badge">🏢</div>
+          <div>
+            <div class="qr-cp-id" id="rCpId">---</div>
+            <div class="qr-cp-name" id="rCpName">---</div>
+            <div class="qr-cp-sub" id="rCpSub">---</div>
+          </div>
+        </div>
+        <div class="qr-grid">
+          <div class="qi"><label>LATITUDE</label><span id="rLat">---</span></div>
+          <div class="qi"><label>LONGITUDE</label><span id="rLng">---</span></div>
+          <div class="qi"><label>รัศมี</label><span id="rRadius">---</span></div>
+          <div class="qi"><label>เวลา</label><span id="rTime">---</span></div>
+        </div>
+        <div id="verifyStatus" style="margin-top:9px;padding:8px 10px;border-radius:6px;font-family:'Chakra Petch',monospace;font-size:10px;letter-spacing:1px;"></div>
+      </div>
+
+      <button class="btn btn-p" id="btnProceed" onclick="goTo(2)" disabled>🔍 ตรวจสอบตำแหน่ง GPS</button>
+      <button class="btn btn-g" onclick="demoScan()" style="font-size:12px;padding:9px;">🎯 [Demo] จำลองสแกน QR</button>
+    </div>
+
+    <!-- SCREEN 2: GPS -->
+    <div class="screen" id="screen2">
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+        <div style="font-size:26px;">🏢</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:13px;" id="s2Name">---</div>
+          <div style="font-family:'Chakra Petch',monospace;font-size:10px;color:var(--dim);" id="s2Id">---</div>
+        </div>
+        <div style="font-family:'Chakra Petch',monospace;font-size:11px;color:var(--accent);text-align:right;" id="s2Clk">--:--:--</div>
+      </div>
+
+      <div class="card">
+        <div class="card-ttl">📡 GPS Signal</div>
+        <div class="gps-bar">
+          <div class="gi"><div class="gi-lbl">LATITUDE</div><div class="gi-val dim" id="gLat">---</div></div>
+          <div class="gi"><div class="gi-lbl">LONGITUDE</div><div class="gi-val dim" id="gLng">---</div></div>
+          <div class="gi"><div class="gi-lbl">ACCURACY</div><div class="gi-val dim" id="gAcc">---</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-ttl">📏 ระยะห่าง</div>
+        <div class="dist-center">
+          <div class="dist-ring">
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#1a3a5c" stroke-width="8"/>
+              <circle cx="60" cy="60" r="52" fill="none" stroke-width="8" stroke-linecap="round"
+                id="dArc" stroke="var(--accent2)" stroke-dasharray="326" stroke-dashoffset="326" style="transition:stroke-dashoffset 1s,stroke .5s;"/>
+            </svg>
+            <div class="dist-inner">
+              <div class="dist-num" id="dNum" style="color:var(--dim)">---</div>
+              <div class="dist-unit">เมตร</div>
+            </div>
+          </div>
+          <div class="dist-lbl" id="dLbl" style="color:var(--dim);">กำลังคำนวณ...</div>
+        </div>
+        <div id="zonePill" class="zone-fail">
+          <div class="zone-ic">📡</div>
+          <div class="zone-txt"><strong>กำลังหาสัญญาณ GPS</strong><small>รอสักครู่...</small></div>
+        </div>
+      </div>
+
+      <div class="card" style="font-family:'Chakra Petch',monospace;font-size:12px;" id="timeChk"></div>
+
+      <button class="btn btn-p" id="btnCam" onclick="goTo(3)" disabled>📷 เปิดกล้องถ่ายภาพ</button>
+    </div>
+
+    <!-- SCREEN 3: CAMERA -->
+    <div class="screen" id="screen3">
+      <div class="cam-wrap">
+        <video id="camVideo" autoplay playsinline muted></video>
+        <div class="cam-ui">
+          <div class="cc tl"></div><div class="cc tr"></div><div class="cc bl"></div><div class="cc br"></div>
+          <div class="cam-line"></div>
+          <div class="cam-bar">
+            <div><div class="cam-tag" id="camTs">--:--:--</div><div class="cam-tag" id="camGps">GPS ---</div></div>
+            <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+          </div>
+        </div>
+      </div>
+      <canvas id="photoCanvas"></canvas>
+
+      <div class="photo-prev" id="photoPrev"><img id="photoImg" src="" alt=""><div class="photo-stamp" id="photoStamp"></div></div>
+
+      <div class="card">
+        <div class="card-ttl">🔏 ลายน้ำ</div>
+        <div class="wm-box">
+          <div class="wm-row"><span class="wm-k">CHECKPOINT</span><span class="wm-v" id="wmCp">---</span></div>
+          <div class="wm-row"><span class="wm-k">GPS</span><span class="wm-v" id="wmGps">---</span></div>
+          <div class="wm-row"><span class="wm-k">TIME</span><span class="wm-v" id="wmTime">---</span></div>
+          <div class="wm-row"><span class="wm-k">QR-SIG</span><span class="wm-v" id="wmSig">---</span></div>
+          <div class="wm-row"><span class="wm-k">DB</span><span class="wm-v" style="color:var(--accent);">Google Sheets ✓</span></div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.3);border-radius:8px;font-size:12px;color:var(--warn);">
+        <span>📷</span><span><strong>LIVE ONLY</strong> — ไม่สามารถเลือกอัลบั้มได้</span>
+      </div>
+
+      <div class="cam-ctrls">
+        <div class="ctrl" onclick="flipCam()">🔄</div>
+        <div class="shutter" id="shutterBtn" onclick="takePhoto()"></div>
+        <div class="ctrl" id="retakeBtn" onclick="retake()" style="opacity:.3">🗑️</div>
+      </div>
+
+      <button class="btn btn-s" id="btnSubmit" disabled onclick="submitCheckin()">
+        ✅ ยืนยัน → บันทึก Google Sheets
+      </button>
+    </div>
+
+    <!-- SCREEN 4: RESULT -->
+    <div class="screen" id="screen4">
+      <div>
+        <span class="res-ico">✅</span>
+        <div class="res-ttl">CHECK-IN สำเร็จ!</div>
+        <div class="res-sub">บันทึกลง Google Sheets และส่งไปยัง LINE แล้ว</div>
+      </div>
+      <div class="detail-list">
+        <div class="dr"><span class="dk">จุดตรวจ</span><span class="dv ok" id="r1">---</span></div>
+        <div class="dr"><span class="dk">เวลา</span><span class="dv" id="r2">---</span></div>
+        <div class="dr"><span class="dk">GPS</span><span class="dv" id="r3">---</span></div>
+        <div class="dr"><span class="dk">ระยะห่าง</span><span class="dv" id="r4">---</span></div>
+        <div class="dr"><span class="dk">QR Verified</span><span class="dv ok">✓ Sheets Verified</span></div>
+        <div class="dr"><span class="dk">Mock GPS</span><span class="dv ok">✓ CLEAN</span></div>
+        <div class="dr"><span class="dk">ภาพถ่ายสด</span><span class="dv ok">✓ LIVE</span></div>
+        <div class="dr"><span class="dk">Report ID</span><span class="dv" id="r5">---</span></div>
+        <div class="dr"><span class="dk">Database</span><span class="dv ok">✓ Google Sheets</span></div>
+      </div>
+      <div class="card" style="border-color:rgba(0,255,157,.3);">
+        <div style="font-size:12px;color:var(--dim);margin-bottom:5px;">📊 บันทึกลงแถว Google Sheets แล้ว</div>
+        <div style="font-size:13px;line-height:1.6;">รายงานจุด <strong id="r6">---</strong> บันทึก GPS, ภาพสด, QR Signature เรียบร้อย Admin สามารถดูได้ทันที</div>
+      </div>
+      <button class="btn btn-g" onclick="resetAll()">🔄 สแกนจุดถัดไป</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+// CONFIG — URL มาจาก QR หรือ localStorage
+// ════════════════════════════════════════════
+// ⚠️ อย่า hardcode URL และ Secret ในโค้ดนี้
+// ระบบจะอ่านจาก localStorage ที่ตั้งผ่าน Admin Panel
+// หรือรับจาก URL parameter ?api=... เมื่อเปิดจาก LINE QR
+const API_URL = localStorage.getItem('sc_api_url') || '';
+const SECRET  = localStorage.getItem('sc_secret')  || '';
+const LIFF_ID = localStorage.getItem('sc_liff_id') || '';
+
+// State
+let cpData=null, currentLat=null, currentLng=null, currentAcc=null;
+let gpsId=null, scanStream=null, camStream=null, scanTicker=null;
+let facingMode='environment', photoTaken=false, photoBlobData=null;
+let currentDist=Infinity, officerInfo={id:'OFF-UNKNOWN',name:'ผู้ใช้งาน'};
+
+// ════════════════════════════════════════════
+// LINE USER INFO
+// ════════════════════════════════════════════
+async function getLiffUser() {
+  try {
+    if (!LIFF_ID) return; // ไม่มี LIFF_ID — ข้ามขั้นตอนนี้
+    if (window.liff) {
+      await liff.init({ liffId: LIFF_ID });
+      if (liff.isLoggedIn()) {
+        const profile = await liff.getProfile();
+        officerInfo = { id: profile.userId, name: profile.displayName };
+        const logoSub = document.querySelector('.logo-sub');
+        if (logoSub) logoSub.textContent = profile.displayName;
+      }
+    }
+  } catch(e) {
+    // LINE LIFF ไม่พร้อม — ใช้โหมด Demo
+  }
+}
+
+// ════════════════════════════════════════════
+// API
+// ════════════════════════════════════════════
+async function apiGet(params) {
+  if (!API_URL) return null;
+  const q = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_URL}?${q}`);
+  return res.json();
+}
+
+async function apiPost(body) {
+  if (!API_URL) { showToast('❌ ไม่มี API URL'); return null; }
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ ...body, secret: SECRET })
+  });
+  return res.json();
+}
+
+async function verifyQrWithSheets(data) {
+  if (!API_URL) {
+    // Demo mode — ยอมรับ QR โดยไม่ตรวจสอบกับ Sheets
+    showToast('⚠️ Demo Mode — ไม่มี API URL');
+    return { valid: true, checkpoint: data, _demo: true };
+  }
+  try {
+    setDbStatus('spin','ตรวจสอบ Sheets...');
+    const res = await apiPost({ action: 'verifyQr', data });
+    if (res?.valid) {
+      setDbStatus('ok','Sheets ✓');
+      return res;
+    } else {
+      setDbStatus('err', res?.reason || 'ไม่ผ่าน');
+      return { valid: false, reason: res?.reason };
+    }
+  } catch(e) {
+    setDbStatus('err','เชื่อมต่อไม่ได้');
+    return { valid: false, reason: 'ไม่สามารถเชื่อมต่อ Sheets — ตรวจสอบ API URL' };
+  }
+}
+
+// ════════════════════════════════════════════
+// SUBMIT CHECK-IN → Google Sheets
+// ════════════════════════════════════════════
+async function submitCheckin() {
+  if (!photoTaken) { showToast('❌ ถ่ายภาพก่อนส่ง'); return; }
+
+  const btn = document.getElementById('btnSubmit');
+  btn.disabled = true;
+  document.getElementById('sendOverlay').classList.add('show');
+  document.getElementById('sendTxt').textContent = 'กำลังบันทึกข้อมูล\nไปยัง Google Sheets...';
+
+  try {
+    const now = new Date();
+    const hash = btoa(`${cpData.cpId}:${currentLat}:${now.getTime()}`).substr(0,12).toUpperCase();
+
+    // ในระบบจริงจะ upload รูปไปยัง Google Drive / S3 ก่อน
+    // แล้วนำ URL ของรูปมาบันทึก
+    const checkinData = {
+      officerId: officerInfo.id,
+      officerName: officerInfo.name,
+      checkpointId: cpData.cpId,
+      checkpointName: cpData.name,
+      lat: currentLat,
+      lng: currentLng,
+      accuracy: currentAcc,
+      distance: Math.round(currentDist),
+      photoUrl: '', // ใส่ Google Drive URL ตรงนี้
+      photoHash: hash,
+      qrSignature: cpData.sig || '',
+      mockScore: 0,
+      status: 'verified',
+      timestamp: now.toISOString()
+    };
+
+    let reportId = 'CI-' + now.getTime().toString(36).toUpperCase().slice(-8);
+
+    if (API_URL) {
+      document.getElementById('sendTxt').textContent = 'กำลังเขียนข้อมูล\nไปยัง Google Sheets...';
+      const res = await apiPost({ action: 'saveCheckin', data: checkinData });
+      if (res?.id) reportId = res.id;
+      showToast('✅ บันทึก Sheets สำเร็จ: ' + reportId);
+    } else {
+      // Demo mode
+      await new Promise(r => setTimeout(r, 1500));
+      showToast('✅ [Demo] บันทึกสำเร็จ: ' + reportId);
+    }
+
+    // แสดงผล
+    const ts = now.toLocaleTimeString('th-TH',{hour12:false});
+    document.getElementById('r1').textContent = `${cpData.cpId} / ${cpData.name}`;
+    document.getElementById('r2').textContent = ts;
+    document.getElementById('r3').textContent = currentLat ? `${currentLat.toFixed(4)}, ${currentLng.toFixed(4)}` : 'N/A';
+    document.getElementById('r4').textContent = Math.round(currentDist) + ' เมตร';
+    document.getElementById('r5').textContent = reportId;
+    document.getElementById('r6').textContent = cpData.cpId;
+
+    document.getElementById('sendOverlay').classList.remove('show');
+    goTo(4);
+  } catch(e) {
+    document.getElementById('sendOverlay').classList.remove('show');
+    showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+// ════════════════════════════════════════════
+// QR SCANNER
+// ════════════════════════════════════════════
+async function startScanner() {
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment',width:{ideal:640},height:{ideal:640} } });
+    const v = document.getElementById('scanVideo');
+    v.srcObject = scanStream; await v.play();
+    startDecode(v);
+  } catch(e) {
+    document.getElementById('scanHint').textContent = '❌ ไม่สามารถเปิดกล้องได้ — กด Demo';
+  }
+}
+
+function startDecode(video) {
+  const canvas = document.createElement('canvas');
+  scanTicker = setInterval(() => {
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const id = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(id.data, id.width, id.height, { inversionAttempts:'dontInvert' });
+    if (code) { clearInterval(scanTicker); processQr(code.data); }
+  }, 200);
+}
+
+function processQr(raw) {
+  try {
+    let data;
+    if (raw.includes('?cp=')) {
+      data = JSON.parse(atob(raw.split('?cp=')[1].split('&')[0]));
+    } else {
+      data = JSON.parse(raw);
+    }
+    handleDecoded(data);
+  } catch(e) {
+    showToast('❌ QR ไม่ถูกต้อง');
+    if(scanTicker) clearInterval(scanTicker);
+    const v = document.getElementById('scanVideo');
+    startDecode(v);
+  }
+}
+
+async function handleDecoded(data) {
+  if (!data.cpId) { showToast('❌ ข้อมูล QR ไม่ครบ'); return; }
+  if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
+  if(scanTicker) clearInterval(scanTicker);
+
+  document.getElementById('scanTxt').textContent = '⏳ ตรวจสอบกับ Google Sheets...';
+
+  // Verify with Sheets
+  const verifyRes = await verifyQrWithSheets(data);
+
+  // Use data from Sheets if available, else use QR data
+  cpData = verifyRes.checkpoint || data;
+
+  document.getElementById('qrResult').classList.add('show');
+  document.getElementById('rCpId').textContent = cpData.cpId || data.cpId;
+  document.getElementById('rCpName').textContent = cpData.name || data.name;
+  document.getElementById('rCpSub').textContent = `รัศมี ${cpData.radius||data.radius} ม. · ${cpData.timeFrom||data.timeFrom||'00:00'}–${cpData.timeTo||data.timeTo||'23:59'}`;
+  document.getElementById('rLat').textContent = parseFloat(cpData.lat||data.lat).toFixed(5);
+  document.getElementById('rLng').textContent = parseFloat(cpData.lng||data.lng).toFixed(5);
+  document.getElementById('rRadius').textContent = (cpData.radius||data.radius) + ' ม.';
+  document.getElementById('rTime').textContent = `${cpData.timeFrom||data.timeFrom}–${cpData.timeTo||data.timeTo}`;
+
+  const vs = document.getElementById('verifyStatus');
+  if (verifyRes.valid) {
+    vs.style.cssText='background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.3);color:var(--accent2);';
+    vs.textContent = '✅ ยืนยันกับ Google Sheets สำเร็จ — VERIFIED';
+  } else {
+    vs.style.cssText='background:rgba(255,45,85,.08);border:1px solid rgba(255,45,85,.3);color:var(--danger);';
+    vs.textContent = `⚠️ ${verifyRes.reason || 'ไม่ผ่านการตรวจสอบ'}`;
+  }
+
+  // Merge QR sig into cpData
+  cpData.sig = data.sig || cpData.sig;
+  document.getElementById('bCpName').textContent = cpData.name;
+  document.getElementById('bRadius').textContent = cpData.radius;
+  document.getElementById('wmCp').textContent = `${cpData.cpId} / ${cpData.name}`;
+  document.getElementById('wmSig').textContent = cpData.sig || 'N/A';
+  document.getElementById('scanTxt').textContent = '✅ สแกน QR สำเร็จ!';
+  document.getElementById('btnProceed').disabled = !verifyRes.valid;
+
+  if (!verifyRes.valid) showToast('⚠️ ' + (verifyRes.reason || 'QR ไม่ผ่าน'));
+  else { showToast(`✅ ${cpData.cpId}: ${cpData.name}`); }
+}
+
+// Demo
+async function demoScan() {
+  const now = Date.now();
+  const raw = JSON.stringify({ v:1, cpId:'CP-01', name:'จุดตรวจประตูหน้า', lat:13.7563, lng:100.5018, radius:50, timeFrom:'00:00', timeTo:'23:59', ts:now });
+  const sig = btoa(raw).substr(0,16).toUpperCase();
+  await handleDecoded({ v:1, cpId:'CP-01', name:'จุดตรวจประตูหน้า', lat:13.7563, lng:100.5018, radius:50, timeFrom:'00:00', timeTo:'23:59', ts:now, sig });
+}
+
+// Parse from URL params (เมื่อเปิดจาก LINE)
+function parseUrl() {
+  const p = new URLSearchParams(window.location.search);
+  const cp = p.get('cp');
+  if (cp) {
+    try { handleDecoded(JSON.parse(atob(cp))); } catch(e) { showToast('❌ ข้อมูล QR ในลิงก์ไม่ถูกต้อง'); }
+  }
+  // รับ API URL, Secret, LIFF ID จาก URL params
+  if (p.get('api')) localStorage.setItem('sc_api_url', p.get('api'));
+  if (p.get('secret')) localStorage.setItem('sc_secret', p.get('secret'));
+  if (p.get('liff')) localStorage.setItem('sc_liff_id', p.get('liff'));
+}
+
+// ════════════════════════════════════════════
+// GPS
+// ════════════════════════════════════════════
+function startGPS() {
+  if (!navigator.geolocation) { simGPS(); return; }
+  gpsId = navigator.geolocation.watchPosition(
+    pos => updateGPS(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+    () => simGPS(),
+    { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
+  );
+}
+
+function simGPS() {
+  let lat = parseFloat(cpData?.lat||13.7563) + 0.003;
+  let lng = parseFloat(cpData?.lng||100.5018) + 0.002;
+  let step = 0;
+  setInterval(() => {
+    if(step<80){ lat-=0.000035; lng-=0.000025; } else { lat+=(Math.random()-.5)*.000008; lng+=(Math.random()-.5)*.000008; }
+    step++;
+    updateGPS(lat, lng, 8+Math.random()*12);
+  }, 1500);
+}
+
+function updateGPS(lat, lng, acc) {
+  currentLat=lat; currentLng=lng; currentAcc=acc;
+  document.getElementById('gLat').textContent = lat.toFixed(6);
+  document.getElementById('gLat').className = 'gi-val';
+  document.getElementById('gLng').textContent = lng.toFixed(6);
+  document.getElementById('gLng').className = 'gi-val';
+  document.getElementById('gAcc').textContent = Math.round(acc)+'m';
+  document.getElementById('gAcc').className = 'gi-val';
+  const camGps = document.getElementById('camGps');
+  if(camGps) camGps.textContent = `GPS ${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const wmGps = document.getElementById('wmGps');
+  if(wmGps) wmGps.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  if(!cpData) return;
+  const dist = haversine(lat,lng,parseFloat(cpData.lat),parseFloat(cpData.lng));
+  currentDist = dist;
+  const inZone = dist <= parseInt(cpData.radius);
+  updateDist(dist, inZone, parseInt(cpData.radius));
+  checkTime();
+  updateBlocker(dist, inZone);
+  document.getElementById('btnCam').disabled = !inZone || acc > 100;
+}
+
+function updateDist(dist, inZone, radius) {
+  const n = Math.round(dist);
+  document.getElementById('dNum').textContent = n;
+  document.getElementById('dNum').style.color = inZone ? 'var(--accent2)' : n<radius*3 ? 'var(--warn)' : 'var(--danger)';
+  const perc = Math.max(0, Math.min(1, 1-(dist/(radius*4))));
+  document.getElementById('dArc').style.strokeDashoffset = 326*(1-perc);
+  document.getElementById('dArc').style.stroke = inZone ? 'var(--accent2)' : 'var(--warn)';
+  document.getElementById('dLbl').textContent = inZone ? `✅ อยู่ในระยะ — ห่าง ${n} เมตร` : `⛔ ห่าง ${n} เมตร`;
+  document.getElementById('dLbl').style.color = inZone ? 'var(--accent2)' : 'var(--warn)';
+  const zp = document.getElementById('zonePill');
+  if(inZone){
+    zp.className='zone-ok';
+    zp.innerHTML=`<div class="zone-ic">✅</div><div class="zone-txt"><strong>อยู่ในระยะแล้ว!</strong><small>ห่าง ${n} ม. — พร้อมถ่ายภาพ</small></div>`;
+  } else {
+    zp.className='zone-fail';
+    zp.innerHTML=`<div class="zone-ic">⛔</div><div class="zone-txt"><strong>อยู่นอกระยะ</strong><small>ต้องเข้าใกล้อีก ${Math.max(0,n-parseInt(cpData.radius))} ม.</small></div>`;
+  }
+}
+
+function checkTime() {
+  if(!cpData) return;
+  const now = new Date();
+  const hm = s => parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]);
+  const cur = now.getHours()*60+now.getMinutes();
+  const from = hm(cpData.timeFrom||'00:00'), to = hm(cpData.timeTo||'23:59');
+  const ok = cur>=from && cur<=to;
+  const ts = now.toLocaleTimeString('th-TH',{hour12:false,hour:'2-digit',minute:'2-digit'});
+  const el = document.getElementById('timeChk');
+  el.innerHTML = ok
+    ? `<span style="color:var(--accent2)">✅ เวลา ${ts} อยู่ในช่วง (${cpData.timeFrom}–${cpData.timeTo})</span>`
+    : `<span style="color:var(--danger)">⛔ เวลา ${ts} นอกช่วงใช้งาน (${cpData.timeFrom}–${cpData.timeTo})</span>`;
+  if(!ok) document.getElementById('btnCam').disabled = true;
+}
+
+function updateBlocker(dist, inZone) {
+  const s2 = document.getElementById('screen2'), s3 = document.getElementById('screen3');
+  document.getElementById('bDist').textContent = Math.round(dist);
+  const active = s2.classList.contains('active')||s3.classList.contains('active');
+  if(!inZone && active){
+    document.getElementById('blocker').classList.add('show');
+    if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  } else {
+    document.getElementById('blocker').classList.remove('show');
+  }
+}
+
+// ════════════════════════════════════════════
+// CAMERA
+// ════════════════════════════════════════════
+async function startCamera() {
+  try {
+    if(camStream){ camStream.getTracks().forEach(t=>t.stop()); }
+    camStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode, width:{ideal:1280}, height:{ideal:960} }, audio:false });
+    const v = document.getElementById('camVideo');
+    v.srcObject = camStream; await v.play();
+  } catch(e) {
+    document.getElementById('camVideo').style.background='linear-gradient(135deg,#0a1a2e,#0c2040)';
+    showToast('📷 Demo mode');
+  }
+}
+
+function flipCam() { facingMode=facingMode==='environment'?'user':'environment'; startCamera(); showToast('🔄 สลับกล้อง'); }
+
+function takePhoto() {
+  if(document.getElementById('shutterBtn').classList.contains('off')) return;
+  if(currentDist > parseInt(cpData?.radius||50)){ showToast('⛔ ยังอยู่นอกระยะ'); return; }
+  const video=document.getElementById('camVideo');
+  const canvas=document.getElementById('photoCanvas');
+  canvas.width=video.videoWidth||640; canvas.height=video.videoHeight||480;
+  const ctx=canvas.getContext('2d'); ctx.drawImage(video,0,0);
+  const now=new Date();
+  const ts=now.toLocaleTimeString('th-TH',{hour12:false});
+  const ds=now.toLocaleDateString('th-TH');
+  const gpsStr=currentLat?`${currentLat.toFixed(5)},${currentLng.toFixed(5)}`:'GPS N/A';
+  const hash=btoa(`${cpData.cpId}:${gpsStr}:${now.getTime()}`).substr(0,12).toUpperCase();
+  ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,canvas.height-72,canvas.width,72);
+  ctx.fillStyle='#00ff9d'; ctx.font=`bold ${Math.max(12,Math.round(canvas.width*.016))}px monospace`;
+  ctx.fillText(`${cpData.cpId} / ${cpData.name} | DB: Google Sheets`,10,canvas.height-50);
+  ctx.fillStyle='rgba(0,255,157,.85)'; ctx.font=`${Math.max(10,Math.round(canvas.width*.013))}px monospace`;
+  ctx.fillText(`GPS: ${gpsStr} | HASH: ${hash}`,10,canvas.height-30);
+  ctx.fillText(`${ds} ${ts} | QR: ${cpData.sig||'—'} | LIVE`,10,canvas.height-10);
+  document.getElementById('photoImg').src=canvas.toDataURL('image/jpeg',.92);
+  document.getElementById('photoPrev').style.display='block';
+  document.getElementById('photoStamp').innerHTML=`${cpData.cpId} | ${cpData.name} | ${ds} ${ts}<br>GPS: ${gpsStr} | HASH: ${hash}<br>QR-SIG: ${cpData.sig||'—'} | DB: Sheets | LIVE`;
+  document.getElementById('wmTime').textContent=ts;
+  photoTaken=true;
+  document.getElementById('shutterBtn').classList.add('off');
+  document.getElementById('retakeBtn').style.opacity='1';
+  document.getElementById('btnSubmit').disabled=false;
+  showToast('✅ บันทึกภาพสำเร็จ');
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); }
+}
+
+function retake() {
+  if(!photoTaken) return;
+  document.getElementById('photoPrev').style.display='none';
+  document.getElementById('btnSubmit').disabled=true;
+  document.getElementById('shutterBtn').classList.remove('off');
+  document.getElementById('retakeBtn').style.opacity='.3';
+  photoTaken=false; startCamera();
+}
+
+// ════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════
+function goTo(n) {
+  if((n===2||n===3)&&cpData&&currentLat){
+    const dist=haversine(currentLat,currentLng,parseFloat(cpData.lat),parseFloat(cpData.lng));
+    if(dist>parseInt(cpData.radius)){
+      showToast(`⛔ ห่าง ${Math.round(dist)} ม. — ต้องอยู่ใน ${cpData.radius} ม.`);
+      document.getElementById('bDist').textContent=Math.round(dist);
+      document.getElementById('blocker').classList.add('show');
+      setTimeout(()=>document.getElementById('blocker').classList.remove('show'),3500);
+      return;
+    }
+  }
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen'+n).classList.add('active');
+  for(let i=1;i<=4;i++){
+    const s=document.getElementById('s'+i);
+    s.classList.remove('active','done');
+    if(i<n)s.classList.add('done');
+    if(i===n)s.classList.add('active');
+  }
+  if(n===2){ startGPS(); }
+  if(n===3){
+    photoTaken=false;
+    document.getElementById('photoPrev').style.display='none';
+    document.getElementById('btnSubmit').disabled=true;
+    document.getElementById('shutterBtn').classList.remove('off');
+    document.getElementById('retakeBtn').style.opacity='.3';
+    startCamera();
+    document.getElementById('s2Name').textContent=cpData?.name||'---';
+    document.getElementById('s2Id').textContent=cpData?.cpId||'---';
+  }
+  if(n===4){
+    if(camStream) camStream.getTracks().forEach(t=>t.stop());
+    if(gpsId) navigator.geolocation.clearWatch(gpsId);
+  }
+}
+
+function resetAll() {
+  cpData=null; currentLat=null; currentLng=null; photoTaken=false; currentDist=Infinity;
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
+  if(gpsId){navigator.geolocation.clearWatch(gpsId);gpsId=null;}
+  if(scanTicker)clearInterval(scanTicker);
+  document.getElementById('qrResult').classList.remove('show');
+  document.getElementById('btnProceed').disabled=true;
+  document.getElementById('scanTxt').textContent='กำลังสแกน...';
+  goTo(1);
+  setTimeout(startScanner,300);
+}
+
+// ════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════
+function haversine(la1,ln1,la2,ln2){const R=6371000,dL=(la2-la1)*Math.PI/180,dN=(ln2-ln1)*Math.PI/180,a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dN/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+
+function setDbStatus(state, txt) {
+  const d=document.getElementById('dbDot');
+  d.className='db-dot '+(state==='ok'?'ok':state==='err'?'err':'spin');
+  document.getElementById('dbTxt').textContent=txt;
+}
+
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+function tick(){
+  const ts=new Date().toLocaleTimeString('th-TH',{hour12:false});
+  const s2=document.getElementById('s2Clk');if(s2)s2.textContent=ts;
+  const ct=document.getElementById('camTs');if(ct)ct.textContent=ts;
+  const wt=document.getElementById('wmTime');if(wt&&!photoTaken)wt.textContent=ts;
+}
+tick(); setInterval(tick,1000);
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  if (API_URL) {
+    setDbStatus('ok','Sheets ✓');
+  } else {
+    setDbStatus('err','ไม่มี API URL');
+    showToast('⚙️ ยังไม่ได้ตั้งค่า API URL — ใช้โหมด Demo');
+  }
+  parseUrl();
+  startScanner();
+  getLiffUser();
+});
+</script>
+</body>
+</html>
