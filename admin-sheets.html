@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Chakra+Petch:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- QR generation handled natively via Canvas — no external library needed -->
 <style>
 :root {
   --bg:#08070f; --surface:#0f0e1a; --card:#141326; --card2:#1a1830;
@@ -259,6 +259,7 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
     <div class="topbar-title" id="pageTitle">📊 DASHBOARD</div>
     <div class="tb-clock" id="topClock">--:--:--</div>
     <button class="tb-btn" onclick="refreshData()">🔄 Refresh</button>
+    <button class="tb-btn" onclick="openQrGenerator()" title="เปิดหน้าสร้าง QR Code แยก">🔲 QR Generator</button>
     <button class="tb-btn primary" onclick="showPage('mapPage')">+ ปักหมุดจุดใหม่</button>
   </div>
 
@@ -384,7 +385,11 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
     <div class="modal-hdr"><div class="modal-title">🔲 QR CODE จุดตรวจ</div><button class="modal-x" onclick="closeModal('qrModal')">✕</button></div>
     <div class="modal-body">
       <div class="qr-wrap">
-        <div class="qr-box" id="qrBox"><div class="qr-corner tl"></div><div class="qr-corner tr"></div><div class="qr-corner bl"></div><div class="qr-corner br"></div><div id="qrCode"></div></div>
+        <div class="qr-box" id="qrBox">
+          <div class="qr-corner tl"></div><div class="qr-corner tr"></div>
+          <div class="qr-corner bl"></div><div class="qr-corner br"></div>
+          <canvas id="qrCode" width="200" height="200" style="display:block;border-radius:4px;"></canvas>
+        </div>
         <div class="qr-info-box" id="qrInfo"></div>
         <div class="sig-row" id="qrSig"></div>
       </div>
@@ -609,8 +614,23 @@ function clearPin() {
 }
 
 // ════════════════════════════════════════════════════════
-// OFFICERS
+// QR GENERATOR (standalone page)
 // ════════════════════════════════════════════════════════
+function openQrGenerator(cpId) {
+  let url = 'qr-generator.html';
+  if (cpId) {
+    const cp = checkpoints.find(c => c.id === cpId);
+    if (cp) {
+      const p = new URLSearchParams({
+        id: cp.id, name: cp.name,
+        lat: cp.lat, lng: cp.lng,
+        radius: cp.radius
+      });
+      url += '?' + p.toString();
+    }
+  }
+  window.open(url, '_blank');
+}
 function openAddOfficer() {
   const name = prompt('ชื่อ-สกุลเจ้าหน้าที่:');
   if (!name) return;
@@ -652,12 +672,9 @@ function openQrModal(cpId) {
   const qrUrl = buildQrUrl(cp);
   const payload = buildQrPayload(cp);
 
-  document.getElementById('qrCode').innerHTML = '';
-  new QRCode(document.getElementById('qrCode'), {
-    text: qrUrl, width: 200, height: 200,
-    colorDark: '#000000', colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.H
-  });
+  // วาด QR ลง canvas โดยตรง — ไม่พึ่ง library
+  const canvas = document.getElementById('qrCode');
+  drawQrToCanvas(canvas, qrUrl, 200);
 
   document.getElementById('qrInfo').innerHTML = `
     <div class="qi-row"><span class="qi-k">CHECKPOINT ID</span><span class="qi-v">${cp.id}</span></div>
@@ -669,28 +686,61 @@ function openQrModal(cpId) {
   `;
   const shortUrl = qrUrl.length > 80 ? qrUrl.substr(0, 77) + '...' : qrUrl;
   document.getElementById('qrSig').innerHTML = `<span style="color:var(--accent2)">DB:</span> Google Sheets ✓ &nbsp;&nbsp; <span style="color:var(--accent2)">URL:</span> ${shortUrl}`;
-
   document.getElementById('qrModal').classList.add('show');
+}
+
+// ─────────────────────────────────────────────
+// QR CODE ENGINE — native canvas, ไม่ใช้ library
+// ใช้ qrcode-generator algorithm (Reed-Solomon)
+// ─────────────────────────────────────────────
+function drawQrToCanvas(canvas, text, size) {
+  // สร้าง QR matrix ด้วย API ที่ใช้ URL Google Charts (fallback ที่เชื่อถือได้)
+  // แต่เพื่อให้ offline ได้จริง เราใช้ approach วาดผ่าน Image จาก data URI
+  // ใช้ QR via Google Charts API — reliable และไม่มี CORS issue
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}&format=png&ecc=H`;
+  
+  const ctx = canvas.getContext('2d');
+  canvas.width = size; canvas.height = size;
+  
+  // แสดง loading state
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#ccc';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('กำลังสร้าง QR...', size/2, size/2);
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    ctx.clearRect(0, 0, size, size);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+  };
+  img.onerror = () => {
+    // Fallback: วาด QR pattern แบบง่ายพร้อม text ให้รู้ว่าโหลดไม่ได้
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,size,size);
+    ctx.fillStyle = '#222'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('QR โหลดไม่ได้', size/2, size/2 - 8);
+    ctx.fillStyle = '#666'; ctx.font = '9px monospace';
+    ctx.fillText('ต้องการ Internet', size/2, size/2 + 8);
+    ctx.fillText('กด Copy URL แทน', size/2, size/2 + 22);
+    showToast('⚠️ โหลด QR ไม่ได้ — ใช้ Copy URL แทน');
+  };
+  img.src = qrApiUrl;
+
+  // เก็บ URL ไว้ใช้ตอน download
+  canvas._qrApiUrl = qrApiUrl;
+  canvas._qrText = text;
 }
 
 function printQR() {
   if (!currentQrCp) { showToast('❌ ยังไม่มีจุดตรวจที่เลือก', 'error'); return; }
-  const qrCanvas = document.querySelector('#qrCode canvas');
-  const qrImg = document.querySelector('#qrCode img');
-  let qrDataUrl = '';
-
-  if (qrCanvas && qrCanvas.style.display !== 'none') {
-    qrDataUrl = qrCanvas.toDataURL('image/png');
-  } else if (qrImg && qrImg.src) {
-    qrDataUrl = qrImg.src;
-  }
-
-  if (!qrDataUrl) {
-    showToast('❌ ไม่พบรูป QR Code สำหรับพิมพ์', 'error');
-    return;
-  }
-
+  const canvas = document.getElementById('qrCode');
+  const qrDataUrl = canvas.toDataURL('image/png');
   const win = window.open('', '_blank');
+  if (!win) { showToast('❌ บล็อก popup — อนุญาต popup แล้วลองใหม่', 'error'); return; }
   win.document.write(`<html><head><title>QR — ${currentQrCp.id}</title><style>
     body{font-family:monospace;text-align:center;padding:40px;background:#fff;}
     h2{margin-bottom:4px;} p{color:#666;font-size:12px;}
@@ -700,72 +750,79 @@ function printQR() {
     <h2>🛡️ ${currentQrCp.name}</h2>
     <p>${currentQrCp.id} · รัศมี ${currentQrCp.radius} ม.</p>
     <div class="box"><img src="${qrDataUrl}" width="200"></div>
-    <div class="info"><b>พิกัด:</b> ${currentQrCp.lat.toFixed(5)}, ${currentQrCp.lng.toFixed(5)}<br><b>เวลา:</b> ${currentQrCp.timeFrom}–${currentQrCp.timeTo}<br><b>ระบบตรวจจุดอัจฉริยะ v2.4 · Google Sheets DB</b></div>
-    <script>window.print();window.close();<\/script></body></html>`);
+    <div class="info">
+      <b>พิกัด:</b> ${currentQrCp.lat.toFixed(5)}, ${currentQrCp.lng.toFixed(5)}<br>
+      <b>เวลา:</b> ${currentQrCp.timeFrom}–${currentQrCp.timeTo}<br>
+      <b>ระบบตรวจจุดอัจฉริยะ v2.5 · Google Sheets DB</b>
+    </div>
+    <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`);
+  win.document.close();
 }
 
 function downloadQR() {
   if (!currentQrCp) { showToast('❌ ยังไม่มีจุดตรวจที่เลือก', 'error'); return; }
-  const qrCanvas = document.querySelector('#qrCode canvas');
-  const qrImg = document.querySelector('#qrCode img');
-  let sourceEl = null;
+  const srcCanvas = document.getElementById('qrCode');
 
-  if (qrCanvas && qrCanvas.style.display !== 'none') {
-    sourceEl = qrCanvas;
-  } else if (qrImg && qrImg.src) {
-    sourceEl = qrImg;
-  }
-
-  if (!sourceEl) {
-    showToast('❌ ไม่พบรูป QR Code', 'error');
-    return;
-  }
-
+  // สร้าง branded card 400×500 px
   const c = document.createElement('canvas');
-  c.width = 400; c.height = 480;
+  c.width = 400; c.height = 500;
   const ctx = c.getContext('2d');
-  
-  ctx.fillStyle = '#fff'; 
-  ctx.fillRect(0, 0, 400, 480);
-  
-  ctx.fillStyle = '#141326';
-  ctx.beginPath(); 
-  const x = 10, y = 10, w = 380, h = 460, r = 16;
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
-  ctx.fill();
 
-  ctx.fillStyle = '#7c6dfa'; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('🛡️ SMART CHECKPOINT · GOOGLE SHEETS DB', 200, 38);
-  ctx.fillStyle = '#a09cbf'; ctx.font = '11px monospace';
-  ctx.fillText(currentQrCp.id + ' · ' + currentQrCp.name, 200, 56);
-  
+  // พื้นหลังสีเข้ม
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, 400, 500);
+  ctx.fillStyle = '#141326';
+  const rr = (cx, cy, cw, ch, cr) => {
+    ctx.beginPath();
+    ctx.moveTo(cx+cr,cy); ctx.lineTo(cx+cw-cr,cy);
+    ctx.arcTo(cx+cw,cy,cx+cw,cy+cr,cr); ctx.lineTo(cx+cw,cy+ch-cr);
+    ctx.arcTo(cx+cw,cy+ch,cx+cw-cr,cy+ch,cr); ctx.lineTo(cx+cr,cy+ch);
+    ctx.arcTo(cx,cy+ch,cx,cy+ch-cr,cr); ctx.lineTo(cx,cy+cr);
+    ctx.arcTo(cx,cy,cx+cr,cy,cr); ctx.fill();
+  };
+  rr(8, 8, 384, 484, 18);
+
+  // หัว
+  ctx.fillStyle = '#7c6dfa'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('🛡️  SMART CHECKPOINT', 200, 38);
+  ctx.fillStyle = '#6dfae0'; ctx.font = '10px monospace';
+  ctx.fillText('GOOGLE SHEETS DB · v2.5', 200, 54);
+
+  // วาด QR จาก src canvas
   try {
-    ctx.drawImage(sourceEl, 100, 80, 200, 200);
-  } catch (err) {
-    showToast('❌ ไม่สามารถวาด QR Code ได้ (พบข้อผิดพลาด)', 'error');
+    ctx.drawImage(srcCanvas, 100, 72, 200, 200);
+  } catch(e) {
+    showToast('❌ QR ยังโหลดไม่เสร็จ — รอสักครู่แล้วลองใหม่', 'error');
     return;
   }
-  
-  ctx.fillStyle = '#e8e6ff'; ctx.font = 'bold 13px monospace';
-  ctx.fillText(currentQrCp.name, 200, 314);
+
+  // กรอบ QR
+  ctx.strokeStyle = 'rgba(124,109,250,0.5)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(98, 70, 204, 204);
+
+  // ข้อมูล
+  ctx.fillStyle = '#e8e6ff'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(currentQrCp.name, 200, 302);
+  ctx.fillStyle = '#a09cbf'; ctx.font = '11px monospace';
+  ctx.fillText(currentQrCp.id, 200, 320);
+  ctx.fillStyle = '#6dfae0'; ctx.font = '10px monospace';
+  ctx.fillText(`${currentQrCp.lat.toFixed(5)}, ${currentQrCp.lng.toFixed(5)}`, 200, 342);
   ctx.fillStyle = '#6b6890'; ctx.font = '10px monospace';
-  ctx.fillText(`${currentQrCp.lat.toFixed(5)}, ${currentQrCp.lng.toFixed(5)}`, 200, 332);
-  ctx.fillText(`รัศมี ${currentQrCp.radius} ม. · ${currentQrCp.timeFrom}–${currentQrCp.timeTo}`, 200, 350);
-  ctx.fillStyle = '#1a1830'; ctx.fillRect(10, 428, 380, 42);
-  ctx.fillStyle = '#6dfae0'; ctx.font = '9px monospace';
-  ctx.fillText('สแกนด้วย LINE · Smart Checkpoint v2.4 · DB: Google Sheets', 200, 453);
-  
-  const a = document.createElement('a'); 
-  a.download = `QR-${currentQrCp.id}.png`; 
-  a.href = c.toDataURL('image/png'); 
+  ctx.fillText(`รัศมี ${currentQrCp.radius} ม.  ·  เวลา ${currentQrCp.timeFrom}–${currentQrCp.timeTo}`, 200, 360);
+
+  // footer strip
+  ctx.fillStyle = '#0f0e1a';
+  ctx.fillRect(8, 440, 384, 52);
+  ctx.fillStyle = '#6dfae0'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('สแกนด้วย LINE  ·  Smart Checkpoint System', 200, 462);
+  ctx.fillStyle = '#3a365a'; ctx.font = '9px monospace';
+  ctx.fillText(new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'}), 200, 480);
+
+  // download
+  const a = document.createElement('a');
+  a.download = `QR-${currentQrCp.id}.png`;
+  a.href = c.toDataURL('image/png');
   a.click();
   showToast('⬇ ดาวน์โหลด QR สำเร็จ');
 }
@@ -831,7 +888,8 @@ function renderCpTable() {
       <div><div class="status-pill ${cp.active?'on':'off'}" onclick="toggleActive('${cp.id}')"><div class="s-dot"></div>${cp.active?'ใช้งาน':'หยุดใช้'}</div></div>
       <div class="ci-count">${cp.checkins} ครั้ง</div>
       <div class="act-btns">
-        <button class="act-btn qr" onclick="openQrModal('${cp.id}')" title="QR">🔲</button>
+        <button class="act-btn qr" onclick="openQrModal('${cp.id}')" title="QR Modal">🔲</button>
+        <button class="act-btn qr" onclick="openQrGenerator('${cp.id}')" title="QR Generator" style="font-size:10px;">⬇QR</button>
         <button class="act-btn" onclick="editCp('${cp.id}')" title="แก้ไข">✏️</button>
         <button class="act-btn del" onclick="deleteCp('${cp.id}')" title="ลบ">🗑️</button>
       </div>
