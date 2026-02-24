@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Generator — Smart Checkpoint</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07060f;
+  --surface: #0e0d1c;
+  --card: #141226;
+  --border: #26234a;
+  --border2: #38355a;
+  --accent: #7c6dfa;
+  --accent2: #fa6d9e;
+  --teal: #6dfae0;
+  --warn: #faad6d;
+  --success: #6dfaa0;
+  --danger: #fa4d6d;
+  --text: #e8e6ff;
+  --dim: #6b6890;
+  --mid: #a09cbf;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Sarabun', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 60px;
+}
+
+/* noise bg */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  opacity: 0.4;
+}
+
+.wrap { position: relative; z-index: 1; width: 100%; max-width: 820px; }
+
+/* ── HEADER ── */
+.page-hdr {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 0 28px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+}
+.logo {
+  width: 46px; height: 46px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 20px rgba(124,109,250,.35);
+  flex-shrink: 0;
+}
+.hdr-title {
+  font-family: 'Chakra Petch', monospace;
+  font-size: 18px; font-weight: 700; letter-spacing: 1.5px;
+  color: var(--accent);
+  text-shadow: 0 0 14px rgba(124,109,250,.4);
+}
+.hdr-sub { font-size: 11px; color: var(--dim); letter-spacing: 1px; margin-top: 2px; }
+.version-pill {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: rgba(124,109,250,.1);
+  border: 1px solid rgba(124,109,250,.2);
+  border-radius: 20px;
+  font-family: 'Chakra Petch', monospace;
+  font-size: 10px; color: var(--accent); letter-spacing: 1px;
+}
+
+/* ── LAYOUT ── */
+.layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
+@media (max-width: 700px) { .layout { grid-template-columns: 1fr; } }
+
+/* ── FORM CARD ── */
+.form-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px; padding: 22px;
+  display: flex; flex-direction: column; gap: 16px;
+  position: relative; overflow: hidden;
+}
+.form-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 16px 16px 0 0;
+}
+.card-title {
+  font-family: 'Chakra Petch', monospace;
+  font-size: 11px; letter-spacing: 2px; color: var(--dim);
+  text-transform: uppercase;
+}
+.form-grp { display: flex; flex-direction: column; gap: 6px; }
+.form-grp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+label {
+  font-family: 'Chakra Petch', monospace;
+  font-size: 9px; letter-spacing: 1.5px; color: var(--dim);
+  text-transform: uppercase;
+}
+input[type=text], input[type=number], input[type=time], input[type=url] {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Sarabun', sans-serif; font-size: 13px;
+  padding: 9px 12px; outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  width: 100%;
+}
+input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,109,250,.1);
+}
+input::placeholder { color: var(--dim); }
+input[type=number] { font-family: 'Chakra Petch', monospace; }
+input[type=time] { font-family: 'Chakra Petch', monospace; color: var(--teal); }
+input[type=url]  { font-family: 'Chakra Petch', monospace; font-size: 11px; color: var(--teal); }
+
+.divider {
+  height: 1px; background: var(--border); margin: 2px 0;
+}
+
+/* ── BUTTONS ── */
+.btn-gen {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, var(--accent), #5a4de0);
+  border: none; border-radius: 10px;
+  color: #fff; font-family: 'Sarabun', sans-serif;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all .25s;
+  box-shadow: 0 4px 18px rgba(124,109,250,.35);
+}
+.btn-gen:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(124,109,250,.5); }
+.btn-gen:active { transform: translateY(0); }
+
+.btn-row { display: flex; gap: 8px; margin-top: 4px; }
+.btn-action {
+  flex: 1; padding: 11px 8px;
+  border-radius: 9px; border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--mid); font-family: 'Sarabun', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all .2s;
+}
+.btn-action:hover { border-color: var(--accent); color: var(--accent); }
+.btn-action.teal:hover { border-color: var(--teal); color: var(--teal); }
+.btn-action.success:hover { border-color: var(--success); color: var(--success); }
+.btn-action:disabled { opacity: .35; pointer-events: none; }
+
+/* ── QR PREVIEW CARD ── */
+.preview-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 20px;
+  gap: 16px;
+  position: relative; overflow: hidden;
+}
+.preview-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--teal), var(--accent));
+}
+
+.qr-stage {
+  position: relative;
+  padding: 16px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(124,109,250,.15);
+}
+.qr-stage canvas { display: block; border-radius: 4px; }
+
+/* corners */
+.qc { position: absolute; width: 20px; height: 20px; border-color: var(--accent); border-style: solid; }
+.qc.tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+.qc.tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+.qc.bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+.qc.br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+/* empty state */
+.qr-empty {
+  width: 220px; height: 220px;
+  background: var(--surface);
+  border: 2px dashed var(--border2);
+  border-radius: 12px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px;
+  color: var(--dim);
+}
+.qr-empty-icon { font-size: 38px; opacity: .5; }
+.qr-empty-txt { font-family: 'Chakra Petch', monospace; font-size: 10px; letter-spacing: 1.5px; text-align: center; }
+
+/* info rows */
+.info-box {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.info-row {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+}
+.info-k {
+  font-family: 'Chakra Petch', monospace;
+  font-size: 9px; color: var(--dim); letter-spacing: 1px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.info-v {
+  font-family: 'Chakra Petch', monospace;
+  font-size: 11px; color: var(--teal);
+  text-align: right; word-break: break-all;
+}
+.info-v.purple { color: var(--accent); }
+.info-v.pink { color: var(--accent2); }
+
+.sig-box {
+  width: 100%;
+  background: rgba(109,250,224,.04);
+  border: 1px solid rgba(109,250,224,.15);
+  border-radius: 8px; padding: 9px 12px;
+  font-family: 'Chakra Petch', monospace;
+  font-size: 9px; color: var(--dim);
+  word-break: break-all; line-height: 1.8;
+}
+.sig-box strong { color: var(--teal); }
+
+/* status */
+.status-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-family: 'Chakra Petch', monospace;
+  font-size: 10px; letter-spacing: 1px;
+  width: 100%;
+}
+.status-bar.ready { background: rgba(109,250,160,.07); border: 1px solid rgba(109,250,160,.25); color: var(--success); }
+.status-bar.loading { background: rgba(250,173,109,.07); border: 1px solid rgba(250,173,109,.25); color: var(--warn); }
+.status-bar.idle { background: rgba(255,255,255,.03); border: 1px solid var(--border); color: var(--dim); }
+.s-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.ready .s-dot { background: var(--success); animation: pulse 1.5s infinite; }
+.loading .s-dot { background: var(--warn); animation: pulse .7s infinite; }
+.idle .s-dot { background: var(--dim); }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+/* toast */
+#toast {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(10px);
+  background: var(--card); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 10px 20px;
+  font-size: 13px; color: var(--text);
+  opacity: 0; transition: all .3s;
+  z-index: 999; white-space: nowrap;
+  font-family: 'Sarabun', sans-serif;
+  box-shadow: 0 6px 28px rgba(0,0,0,.5);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="page-hdr">
+    <div class="logo">🔲</div>
+    <div>
+      <div class="hdr-title">QR GENERATOR</div>
+      <div class="hdr-sub">SMART CHECKPOINT SYSTEM · สร้าง QR Code สำหรับจุดตรวจ</div>
+    </div>
+    <div class="version-pill">v2.5</div>
+  </div>
+
+  <div class="layout">
+
+    <!-- ── FORM ── -->
+    <div class="form-card">
+      <div class="card-title">📋 ข้อมูลจุดตรวจ</div>
+
+      <div class="form-grp">
+        <label>ชื่อจุดตรวจ</label>
+        <input type="text" id="fName" placeholder="เช่น จุดตรวจประตูหน้า" oninput="onFormChange()">
+      </div>
+
+      <div class="form-grp-row">
+        <div class="form-grp">
+          <label>รหัส CP-ID</label>
+          <input type="text" id="fId" placeholder="CP-01" style="font-family:'Chakra Petch',monospace;" oninput="this.value=this.value.toUpperCase(); onFormChange()">
+        </div>
+        <div class="form-grp">
+          <label>รัศมี (เมตร)</label>
+          <input type="number" id="fRadius" value="50" min="10" max="500" oninput="onFormChange()">
+        </div>
+      </div>
+
+      <div class="form-grp-row">
+        <div class="form-grp">
+          <label>Latitude</label>
+          <input type="text" id="fLat" placeholder="13.756300" style="font-family:'Chakra Petch',monospace;color:var(--teal);" oninput="onFormChange()">
+        </div>
+        <div class="form-grp">
+          <label>Longitude</label>
+          <input type="text" id="fLng" placeholder="100.501800" style="font-family:'Chakra Petch',monospace;color:var(--teal);" oninput="onFormChange()">
+        </div>
+      </div>
+
+      <div class="form-grp-row">
+        <div class="form-grp">
+          <label>เวลาเริ่ม</label>
+          <input type="time" id="fFrom" value="08:00" oninput="onFormChange()">
+        </div>
+        <div class="form-grp">
+          <label>เวลาสิ้นสุด</label>
+          <input type="time" id="fTo" value="20:00" oninput="onFormChange()">
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="card-title">🔗 LIFF URL (สำหรับ LINE)</div>
+      <div class="form-grp">
+        <label>LIFF URL (เว้นว่างได้ถ้าแค่ต้องการ QR ข้อมูล)</label>
+        <input type="url" id="fLiff" placeholder="https://liff.line.me/xxxxxxxxxx-xxxxxxxx" oninput="onFormChange()">
+      </div>
+
+      <button class="btn-gen" onclick="generateQR()">
+        🔲 สร้าง QR Code
+      </button>
+
+      <div class="btn-row">
+        <button class="btn-action success" id="btnDown" onclick="downloadQR()" disabled>⬇ บันทึก PNG</button>
+        <button class="btn-action teal" id="btnPrint" onclick="printQR()" disabled>🖨️ Print</button>
+        <button class="btn-action" id="btnCopy" onclick="copyUrl()" disabled>🔗 Copy URL</button>
+      </div>
+    </div>
+
+    <!-- ── PREVIEW ── -->
+    <div class="preview-card">
+
+      <div class="card-title" style="width:100%;text-align:left;">🖼️ ตัวอย่าง QR Code</div>
+
+      <div id="qrStageWrap">
+        <div class="qr-empty" id="qrEmpty">
+          <div class="qr-empty-icon">🔲</div>
+          <div class="qr-empty-txt">กรอกข้อมูล<br>แล้วกด "สร้าง QR"</div>
+        </div>
+        <div class="qr-stage" id="qrStage" style="display:none;">
+          <div class="qc tl"></div><div class="qc tr"></div>
+          <div class="qc bl"></div><div class="qc br"></div>
+          <canvas id="qrCanvas" width="220" height="220"></canvas>
+        </div>
+      </div>
+
+      <div id="statusBar" class="status-bar idle">
+        <div class="s-dot"></div>
+        <span id="statusTxt">รอสร้าง QR</span>
+      </div>
+
+      <div class="info-box" id="infoBox" style="display:none;">
+        <div class="info-row">
+          <span class="info-k">CHECKPOINT ID</span>
+          <span class="info-v purple" id="iId">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-k">NAME</span>
+          <span class="info-v" id="iName">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-k">COORDS</span>
+          <span class="info-v" id="iCoord">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-k">RADIUS</span>
+          <span class="info-v" id="iRadius">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-k">TIME</span>
+          <span class="info-v" id="iTime">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-k">SIGNATURE</span>
+          <span class="info-v pink" id="iSig">—</span>
+        </div>
+      </div>
+
+      <div class="sig-box" id="sigBox" style="display:none;">
+        <strong>URL:</strong> <span id="iUrl">—</span>
+      </div>
+
+    </div>
+  </div><!-- /layout -->
+
+</div><!-- /wrap -->
+
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════
+let currentPayload = null;
+let currentUrl = null;
+let qrReady = false;
+
+// ════════════════════════════════════════════
+// FORM
+// ════════════════════════════════════════════
+function onFormChange() { qrReady = false; }
+
+function getFormData() {
+  const name   = document.getElementById('fName').value.trim();
+  const id     = document.getElementById('fId').value.trim().toUpperCase();
+  const radius = parseInt(document.getElementById('fRadius').value) || 50;
+  const lat    = parseFloat(document.getElementById('fLat').value);
+  const lng    = parseFloat(document.getElementById('fLng').value);
+  const from   = document.getElementById('fFrom').value || '00:00';
+  const to     = document.getElementById('fTo').value   || '23:59';
+  const liff   = document.getElementById('fLiff').value.trim();
+  return { name, id, radius, lat, lng, from, to, liff };
+}
+
+function validate(d) {
+  if (!d.name) return 'กรุณากรอกชื่อจุดตรวจ';
+  if (!d.id)   return 'กรุณากรอกรหัส CP-ID';
+  if (isNaN(d.lat) || d.lat === 0) return 'กรุณากรอก Latitude';
+  if (isNaN(d.lng) || d.lng === 0) return 'กรุณากรอก Longitude';
+  if (d.lat < -90 || d.lat > 90)   return 'Latitude ต้องอยู่ระหว่าง -90 ถึง 90';
+  if (d.lng < -180 || d.lng > 180) return 'Longitude ต้องอยู่ระหว่าง -180 ถึง 180';
+  return null;
+}
+
+// ════════════════════════════════════════════
+// BUILD PAYLOAD & URL
+// ════════════════════════════════════════════
+function buildPayload(d) {
+  const payload = {
+    v: 1,
+    cpId: d.id,
+    name: d.name,
+    lat: d.lat,
+    lng: d.lng,
+    radius: d.radius,
+    timeFrom: d.from,
+    timeTo: d.to,
+    ts: Date.now()
+  };
+  const raw = JSON.stringify(payload);
+  payload.sig = btoa(raw).substr(0, 16).toUpperCase();
+  return payload;
+}
+
+function buildUrl(payload, liff) {
+  const encoded = btoa(JSON.stringify(payload));
+  if (liff) return `${liff}?cp=${encoded}`;
+  return `data:checkpoint,${encoded}`;
+}
+
+// ════════════════════════════════════════════
+// GENERATE
+// ════════════════════════════════════════════
+function generateQR() {
+  const d = getFormData();
+  const err = validate(d);
+  if (err) { showToast('❌ ' + err); return; }
+
+  currentPayload = buildPayload(d);
+  currentUrl = buildUrl(currentPayload, d.liff);
+
+  setStatus('loading', 'กำลังโหลด QR จาก API...');
+
+  const canvas = document.getElementById('qrCanvas');
+  const size = 220;
+  canvas.width = size; canvas.height = size;
+
+  const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(currentUrl)}&format=png&ecc=H&margin=1`;
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+
+  img.onload = () => {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+
+    // แสดง
+    document.getElementById('qrEmpty').style.display = 'none';
+    document.getElementById('qrStage').style.display = 'block';
+    document.getElementById('infoBox').style.display = 'flex';
+    document.getElementById('sigBox').style.display = 'block';
+
+    // fill info
+    document.getElementById('iId').textContent     = currentPayload.cpId;
+    document.getElementById('iName').textContent   = currentPayload.name;
+    document.getElementById('iCoord').textContent  = `${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}`;
+    document.getElementById('iRadius').textContent = `${d.radius} เมตร`;
+    document.getElementById('iTime').textContent   = `${d.from} – ${d.to}`;
+    document.getElementById('iSig').textContent    = currentPayload.sig;
+    document.getElementById('iUrl').textContent    = currentUrl.length > 72 ? currentUrl.substr(0,69)+'...' : currentUrl;
+
+    setStatus('ready', 'QR พร้อมใช้งาน — คลิก ⬇ บันทึก PNG');
+    qrReady = true;
+
+    // enable buttons
+    ['btnDown','btnPrint','btnCopy'].forEach(id => {
+      document.getElementById(id).disabled = false;
+    });
+
+    showToast('✅ สร้าง QR สำเร็จ! กด "บันทึก PNG" ได้เลย');
+  };
+
+  img.onerror = () => {
+    // fallback: วาด placeholder บน canvas แจ้งให้ใช้ Copy URL
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(0,0,size,size);
+    ctx.fillStyle = '#444'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('ไม่สามารถโหลด QR ได้', size/2, size/2 - 16);
+    ctx.fillStyle = '#888'; ctx.font = '10px monospace';
+    ctx.fillText('ต้องการ Internet', size/2, size/2 + 2);
+    ctx.fillText('กด Copy URL แทน', size/2, size/2 + 18);
+
+    document.getElementById('qrEmpty').style.display = 'none';
+    document.getElementById('qrStage').style.display = 'block';
+    document.getElementById('infoBox').style.display = 'flex';
+    document.getElementById('sigBox').style.display = 'block';
+    document.getElementById('iId').textContent     = currentPayload.cpId;
+    document.getElementById('iName').textContent   = currentPayload.name;
+    document.getElementById('iCoord').textContent  = `${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}`;
+    document.getElementById('iRadius').textContent = `${d.radius} เมตร`;
+    document.getElementById('iTime').textContent   = `${d.from} – ${d.to}`;
+    document.getElementById('iSig').textContent    = currentPayload.sig;
+    document.getElementById('iUrl').textContent    = currentUrl;
+
+    setStatus('idle', '⚠️ โหลด QR ไม่ได้ — ใช้ Copy URL แทน');
+    document.getElementById('btnCopy').disabled = false;
+    showToast('⚠️ โหลด QR ไม่ได้ — กด Copy URL เพื่อรับลิงก์');
+  };
+
+  img.src = apiUrl;
+}
+
+// ════════════════════════════════════════════
+// DOWNLOAD
+// ════════════════════════════════════════════
+function downloadQR() {
+  if (!currentPayload || !qrReady) { showToast('❌ สร้าง QR ก่อน'); return; }
+
+  const srcCanvas = document.getElementById('qrCanvas');
+  const W = 400, H = 500;
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const ctx = out.getContext('2d');
+
+  // white bg
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+
+  // dark card
+  ctx.fillStyle = '#141226';
+  roundRect(ctx, 8, 8, W-16, H-16, 18);
+  ctx.fill();
+
+  // gradient top strip
+  const grad = ctx.createLinearGradient(0,8,W,8);
+  grad.addColorStop(0, '#7c6dfa'); grad.addColorStop(1, '#fa6d9e');
+  ctx.fillStyle = grad; roundRect(ctx, 8, 8, W-16, 4, 2); ctx.fill();
+
+  // header text
+  ctx.fillStyle = '#7c6dfa';
+  ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('🛡️  SMART CHECKPOINT', W/2, 40);
+  ctx.fillStyle = '#6dfae0'; ctx.font = '10px monospace';
+  ctx.fillText('GOOGLE SHEETS DB · v2.5', W/2, 57);
+
+  // QR image
+  try {
+    ctx.drawImage(srcCanvas, 90, 72, 220, 220);
+  } catch(e) {
+    showToast('❌ QR ยังโหลดไม่เสร็จ', 'error'); return;
+  }
+
+  // QR border glow
+  ctx.strokeStyle = 'rgba(124,109,250,0.4)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(88, 70, 224, 224);
+
+  // info text
+  ctx.fillStyle = '#e8e6ff'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(currentPayload.name, W/2, 322);
+  ctx.fillStyle = '#7c6dfa'; ctx.font = '12px monospace';
+  ctx.fillText(currentPayload.cpId, W/2, 342);
+  ctx.fillStyle = '#6dfae0'; ctx.font = '10px monospace';
+  ctx.fillText(`${parseFloat(document.getElementById('fLat').value).toFixed(5)}, ${parseFloat(document.getElementById('fLng').value).toFixed(5)}`, W/2, 362);
+  ctx.fillStyle = '#6b6890'; ctx.font = '10px monospace';
+  ctx.fillText(`รัศมี ${currentPayload.radius} ม.  ·  ${currentPayload.timeFrom}–${currentPayload.timeTo}`, W/2, 380);
+
+  // footer
+  ctx.fillStyle = '#0e0d1c';
+  roundRect(ctx, 8, H-60, W-16, 52, 4); ctx.fill();
+  ctx.fillStyle = '#6dfae0'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('สแกนด้วย LINE  ·  Smart Checkpoint System', W/2, H-36);
+  ctx.fillStyle = '#38355a'; ctx.font = '9px monospace';
+  ctx.fillText(new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'}), W/2, H-18);
+
+  const a = document.createElement('a');
+  a.download = `QR-${currentPayload.cpId}.png`;
+  a.href = out.toDataURL('image/png');
+  a.click();
+  showToast('⬇ บันทึกไฟล์ QR-' + currentPayload.cpId + '.png แล้ว');
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
+  ctx.arcTo(x+w, y, x+w, y+r, r); ctx.lineTo(x+w, y+h-r);
+  ctx.arcTo(x+w, y+h, x+w-r, y+h, r); ctx.lineTo(x+r, y+h);
+  ctx.arcTo(x, y+h, x, y+h-r, r); ctx.lineTo(x, y+r);
+  ctx.arcTo(x, y, x+r, y, r); ctx.closePath();
+}
+
+// ════════════════════════════════════════════
+// PRINT
+// ════════════════════════════════════════════
+function printQR() {
+  if (!currentPayload || !qrReady) { showToast('❌ สร้าง QR ก่อน'); return; }
+  const srcCanvas = document.getElementById('qrCanvas');
+  const dataUrl = srcCanvas.toDataURL('image/png');
+  const win = window.open('', '_blank');
+  if (!win) { showToast('❌ อนุญาต popup ก่อน'); return; }
+  const d = getFormData();
+  win.document.write(`
+    <!DOCTYPE html><html><head><title>QR ${currentPayload.cpId}</title>
+    <style>
+      @page { size: A4; margin: 20mm; }
+      body { font-family: monospace; text-align: center; background: #fff; color: #111; }
+      .badge { display: inline-block; padding: 4px 12px; background: #f0f0ff; border: 1px solid #aaa; border-radius: 20px; font-size: 11px; margin-bottom: 12px; }
+      .box { display: inline-block; padding: 18px; border: 3px solid #111; border-radius: 14px; margin: 12px 0; }
+      .info { background: #f7f7f7; padding: 12px 16px; border-radius: 8px; font-size: 11px; text-align: left; max-width: 260px; margin: 0 auto 16px; line-height: 1.9; }
+      .sig { font-size: 9px; color: #777; letter-spacing: 1px; margin-top: 12px; }
+    </style></head><body>
+    <div class="badge">🛡️ SMART CHECKPOINT SYSTEM</div>
+    <h2 style="margin:0 0 4px;">${currentPayload.name}</h2>
+    <p style="color:#666;font-size:12px;margin-bottom:2px;">${currentPayload.cpId}</p>
+    <div class="box"><img src="${dataUrl}" width="220"></div>
+    <div class="info">
+      <b>📍 พิกัด:</b> ${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}<br>
+      <b>🎯 รัศมี:</b> ${d.radius} เมตร<br>
+      <b>⏰ เวลา:</b> ${d.from} – ${d.to}<br>
+      <b>🔏 Signature:</b> ${currentPayload.sig}
+    </div>
+    <div class="sig">Smart Checkpoint v2.5 · สร้างเมื่อ ${new Date().toLocaleString('th-TH')}</div>
+    <script>window.onload=function(){window.print();}<\/script>
+    </body></html>
+  `);
+  win.document.close();
+}
+
+// ════════════════════════════════════════════
+// COPY URL
+// ════════════════════════════════════════════
+function copyUrl() {
+  if (!currentUrl) { showToast('❌ สร้าง QR ก่อน'); return; }
+  navigator.clipboard.writeText(currentUrl)
+    .then(() => showToast('📋 คัดลอก URL แล้ว'))
+    .catch(() => {
+      // fallback สำหรับ browser ที่ไม่ support
+      const ta = document.createElement('textarea');
+      ta.value = currentUrl;
+      document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy');
+      ta.remove();
+      showToast('📋 คัดลอก URL แล้ว');
+    });
+}
+
+// ════════════════════════════════════════════
+// STATUS & TOAST
+// ════════════════════════════════════════════
+function setStatus(type, msg) {
+  const bar = document.getElementById('statusBar');
+  bar.className = 'status-bar ' + type;
+  document.getElementById('statusTxt').textContent = msg;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ════════════════════════════════════════════
+// INIT — โหลด config จาก localStorage (ถ้ามี)
+// ════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  const liff = localStorage.getItem('sc_liff_id');
+  if (liff) {
+    document.getElementById('fLiff').value = `https://liff.line.me/${liff}`;
+  }
+  // ถ้ามี URL params ให้ prefill
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('id'))     document.getElementById('fId').value     = p.get('id');
+  if (p.get('name'))   document.getElementById('fName').value   = p.get('name');
+  if (p.get('lat'))    document.getElementById('fLat').value    = p.get('lat');
+  if (p.get('lng'))    document.getElementById('fLng').value    = p.get('lng');
+  if (p.get('radius')) document.getElementById('fRadius').value = p.get('radius');
+  // ถ้า prefill ครบ ให้ generate ทันที
+  if (p.get('id') && p.get('lat') && p.get('lng')) generateQR();
+});
+</script>
+</body>
+</html>
